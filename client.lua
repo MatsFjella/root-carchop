@@ -1,7 +1,7 @@
--- Get the QBCore object
+-- Hent QBCore
 local QBCore = exports['qb-core']:GetCoreObject()
 
--- Initialize variables
+-- Penger og items variabler
 local carCategories = {"Compacts", "Coupes", "Muscle", "Off-road", "Sedans", "Sports", "Sports Classics", "SUVs"}
 local items = {"plastic", "metalscrap", "copper", "aluminum", "iron", "steel", "rubber", "glass"}
 
@@ -39,7 +39,7 @@ local function GetVehicleCategory(vehicle)
     return classToCategory[class]
 end
 
--- Function to choose a random item from a table
+-- Velg randome items
 local function chooseRandomItem(table)
     local keys = {}
     for key, value in pairs(table) do
@@ -48,7 +48,7 @@ local function chooseRandomItem(table)
     return table[keys[math.random(1, #keys)]]
 end
 
--- Check and update car category every 2 hours
+-- Oppdater bilkategori vær andre time
 local function updateCarCategory()
     local currentTime = GetGameTimer() / 1000
     if lastChangeTime == nil or (currentTime - lastChangeTime >= 2 * 60 * 60) then
@@ -57,11 +57,11 @@ local function updateCarCategory()
     end
 end
 
--- Define the PED model and location
+-- PED innstillinger
 local pedModel = 'mp_m_waremech_01'
 local pedCoord = vector4(-469.44, -1717.56, 17.69, 286.26)
 
--- Function to load the PED model
+-- Last inn PED
 local function LoadModel(model)
     local attempts = 0
     while attempts < 100 and not HasModelLoaded(model) do
@@ -72,7 +72,7 @@ local function LoadModel(model)
     return IsModelValid(model)
 end
 
--- Function to spawn the PED and make it interactive
+-- Spawn PED å gjør han interactable
 local function spawnPed()
     if not LoadModel(pedModel) then
         print('Failed to load model ' .. pedModel)
@@ -83,7 +83,7 @@ local function spawnPed()
     SetEntityInvincible(ped, true)
     FreezeEntityPosition(ped, true)
 
-    -- Register ped with QB-Target
+    -- QB-target med PED
     exports['qb-target']:AddTargetModel({pedModel}, {
         options = {
             {
@@ -96,7 +96,7 @@ local function spawnPed()
     })
 end
 
--- Job interaction
+-- Notifikasjoner
 local function interactWithPed()
     updateCarCategory()
     if cooldownEnd ~= nil and GetGameTimer() / 1000 <= cooldownEnd then
@@ -108,30 +108,29 @@ local function interactWithPed()
     end
 end
 
--- Event for interacting with the PED
+-- Interaksjon med PED
 RegisterNetEvent('myResource:interactWithPed')
 AddEventHandler('myResource:interactWithPed', function()
-    -- Call your function to interact with the ped
     interactWithPed()
 end)
 
--- Call the function when the resource is started
+-- Start funksjon
 Citizen.CreateThread(function()
-    Citizen.Wait(1000) -- wait 1 second to allow everything to load
+    Citizen.Wait(1000) -- Vent i ett sekund for å laste inn
     spawnPed()
 end)
 
--- Define the delivery point
+-- Leveranse lokasjon
 local deliveryPoint = vector4(-463.9, -1715.03, 18.67, 301.91)
 
--- Deliver car
+-- Lever bil
 local function deliverCar(player, car)
     if car.category == currentCarCategory then
-        -- Reward player
+        -- Gevinst
         local cash = math.random(1000, 4500)
         local rewardItems = {}
 
-        -- Select 3 to 5 random items from `items`
+        -- Velg mellom 3 og 6 items fra items tabellen
         local numItems = math.random(3, 6)
         for i = 1, numItems do
             local item = chooseRandomItem(items)
@@ -140,39 +139,38 @@ local function deliverCar(player, car)
 
         for _, item in ipairs(rewardItems) do
             local quantity = math.random(6, 16)
-            -- Use appropriate QBCore function to give items to player
-            -- Replace the following line with your own reward logic
             TriggerServerEvent('giveItem', item, quantity)
+            TriggerServerEvent('giveMoney', 'cash', cash) 
+
         end
 
 
 
 
 
-        -- Despawn the vehicle
+        -- Slett kjøretøy
         local vehicle = GetVehiclePedIsIn(player, false)
         if vehicle ~= 0 then
             SetEntityAsMissionEntity(vehicle, true, true)
             DeleteEntity(vehicle)
-            TriggerServerEvent('qb-vehiclekeys:server:RemoveKey', plate)
+            -- TriggerServerEvent('qb-vehiclekeys:server:RemoveKey', plate)
         end
 
-        -- Reset currentCarCategory and lastChangeTime
         currentCarCategory = nil
         lastChangeTime = nil
 
-        -- Set cooldown
+        -- start cooldown
         cooldownEnd = GetGameTimer() / 1000 + 3 * 60
 
         if cooldownActive then
-            -- Notify player of successful delivery
+            -- Notifikasjon for suksessfull levranse
             exports['okokNotify']:Alert("Du skrapa bilen! Du kan hente ny om 3 minutter", "Cooldown", 10000, 'blue')
         else
-            -- Notify player of successful delivery and cooldown
+            -- Notifikasjon om leveranse og cooldown
             exports['okokNotify']:Alert("Du skrapa bilen! Du kan hente ny om 3 minutter", "Cooldown", 10000, 'blue')
         end
     else
-        -- Notify player about wrong category when 'E' key is pressed
+        -- Feil kategori beskjed om du trykker E
         if IsControlJustReleased(0, 38) then
             local vehicle = GetVehiclePedIsIn(player, false)
             if vehicle ~= 0 then
@@ -185,77 +183,62 @@ local function deliverCar(player, car)
                     return
                 end
             end
-            QBCore.Functions.Notify("This is not the correct type of vehicle.", "error")
+            QBCore.Functions.Notify("Dette er feil type bil.", "error")
         end
     end
 end
 
 
 
--- Create a thread to handle vehicle delivery
+-- Thread for å levere bil
 Citizen.CreateThread(function()
     local inDeliveryZone = false
     local cooldownActive = false
+    local vehicleCategory = nil
 
     while true do
-        Citizen.Wait(0) -- We run this loop every frame
+        Citizen.Wait(3000) -- Kjøres vært 3 sekund
 
-        -- Get the player's vehicle
+        -- Hent spillerens kjøretøy
         local ped = PlayerPedId()
         local vehicle = GetVehiclePedIsIn(ped, false)
         local coords = GetEntityCoords(ped)
 
-        -- Draw a marker at the delivery point, but only if the player is in a vehicle
-        if vehicle ~= 0 then
-            DrawMarker(1, deliveryPoint.x, deliveryPoint.y, deliveryPoint.z - 1.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 15.0, 15.0, 1.0, 0, 255, 0, 100, false, true, 2, false, false, false, false)
-        end
-
-        -- Check if the player is in the delivery zone
+        -- Sjekk om spilleren er i leveranse sonen
         local isInZone = Vdist(coords, deliveryPoint.xyz) < 15.0
 
         if isInZone then
-            -- If the player enters the delivery zone, enable the delivery check and cooldown
+            -- Om spilleren er i sonen sjekk type og cooldown
             if not inDeliveryZone then
                 inDeliveryZone = true
                 cooldownActive = false
+                vehicleCategory = GetVehicleCategory(vehicle)
             end
 
-            -- If the player is in a vehicle and the correct category
-            if vehicle ~= 0 and not cooldownActive then
-                local category = GetVehicleCategory(vehicle)
-                if category == currentCarCategory then
-                    -- If 'E' key is pressed
-                    if IsControlJustReleased(0, 38) then
-                        -- Deliver the vehicle and reward the player
-                        deliverCar(PlayerId(), {category = category})
+            if vehicle ~= 0 and not cooldownActive and GetVehicleCategory(vehicle) == currentCarCategory then
+                DrawMarker(1, deliveryPoint.x, deliveryPoint.y, deliveryPoint.z - 1.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 15.0, 15.0, 1.0, 0, 255, 0, 100, false, true, 2, false, false, false, false)
 
-                        -- Despawn the vehicle
-                        SetEntityAsMissionEntity(vehicle, true, true)
-                        DeleteEntity(vehicle)
+                if IsControlJustReleased(0, 38) then
+                    deliverCar(PlayerId(), {category = currentCarCategory})
 
-                        -- Once done, reset currentCarCategory and lastChangeTime
-                        currentCarCategory = nil
-                        lastChangeTime = nil
+                    SetEntityAsMissionEntity(vehicle, true, true)
+                    DeleteEntity(vehicle)
 
-                        -- Activate cooldown
-                        cooldownActive = true
-                        Citizen.SetTimeout(3 * 60 * 1000, function()
-                            cooldownActive = false
-                        end)
-                    end
-                else
-                    -- If 'E' key is pressed
-                    if IsControlJustReleased(0, 38) then
-                        -- Notify player about wrong category
-                        QBCore.Functions.Notify("This is not the correct type of vehicle.", "error")
-                    end
+                    currentCarCategory = nil
+                    lastChangeTime = nil
+
+                    cooldownActive = true
+                    Citizen.SetTimeout(3 * 60 * 1000, function()
+                        cooldownActive = false
+                    end)
                 end
             end
         else
-            -- If the player exits the delivery zone, disable the delivery check
             if inDeliveryZone then
                 inDeliveryZone = false
+                vehicleCategory = nil
             end
         end
     end
 end)
+
