@@ -2,7 +2,7 @@
 local QBCore = exports['qb-core']:GetCoreObject()
 
 -- Initialize variables
-local carCategories = {"Compacts", "Coupe", "Muscle", "Offroad", "Sedan", "Sports", "Sportsclassic", "SUV"}
+local carCategories = {"Compacts", "Coupes", "Muscle", "Off-road", "Sedans", "Sports", "Sports Classics", "SUVs"}
 local items = {"plastic", "metalscrap", "copper", "aluminum", "iron", "steel", "rubber", "glass"}
 
 local currentCarCategory = nil
@@ -34,14 +34,10 @@ local classToCategory = {
     [21] = "Trains"
 }
 
-
-local function GetVehicleClassFromModel(vehicle)
-    local modelHash = GetEntityModel(vehicle)
-    local model = GetDisplayNameFromVehicleModel(modelHash)
-    local class = GetVehicleClassFromName(model)
+local function GetVehicleCategory(vehicle)
+    local class = GetVehicleClass(vehicle)
     return classToCategory[class]
 end
-
 
 -- Function to choose a random item from a table
 local function chooseRandomItem(table)
@@ -55,7 +51,7 @@ end
 -- Check and update car category every 2 hours
 local function updateCarCategory()
     local currentTime = GetGameTimer() / 1000
-    if lastChangeTime == nil or (currentTime - lastChangeTime >= 2*60*60) then
+    if lastChangeTime == nil or (currentTime - lastChangeTime >= 2 * 60 * 60) then
         currentCarCategory = chooseRandomItem(carCategories)
         lastChangeTime = currentTime
     end
@@ -86,7 +82,7 @@ local function spawnPed()
     SetEntityAsMissionEntity(ped, true, true)
     SetEntityInvincible(ped, true)
     FreezeEntityPosition(ped, true)
-    
+
     -- Register ped with QB-Target
     exports['qb-target']:AddTargetModel({pedModel}, {
         options = {
@@ -105,7 +101,7 @@ local function interactWithPed()
     updateCarCategory()
     if cooldownEnd ~= nil and GetGameTimer() / 1000 <= cooldownEnd then
         -- Notify player of cooldown
-        QBCore.Functions.Notify("You are on cooldown!", "error")
+        QBCore.Functions.Notify("Du må vente på å hente ny bil!", "error")
     else
         -- Notify player of job assignment
         exports['okokNotify']:Alert("Hent "..currentCarCategory.."", "Biltype du skal stjele", 10000, 'blue')
@@ -128,32 +124,72 @@ end)
 -- Define the delivery point
 local deliveryPoint = vector4(-463.9, -1715.03, 18.67, 301.91)
 
-
-
-
-
-
 -- Deliver car
 local function deliverCar(player, car)
     if car.category == currentCarCategory then
         -- Reward player
-        local cash = math.random(1000, 3500)
-        local rewardItems = {} -- Use an appropriate logic to select 3 to 5 random items from `items`
-        for _, item in ipairs(rewardItems) do
-            local quantity = math.random(7, 10)
-            -- Use appropriate QBCore function to give items to player
+        local cash = math.random(1000, 4500)
+        local rewardItems = {}
+
+        -- Select 3 to 5 random items from `items`
+        local numItems = math.random(3, 6)
+        for i = 1, numItems do
+            local item = chooseRandomItem(items)
+            table.insert(rewardItems, item)
         end
-        -- Use appropriate QBCore function to give cash to player
+
+        for _, item in ipairs(rewardItems) do
+            local quantity = math.random(6, 16)
+            -- Use appropriate QBCore function to give items to player
+            -- Replace the following line with your own reward logic
+            TriggerServerEvent('giveItem', item, quantity)
+        end
+
+
+
+
+
+        -- Despawn the vehicle
+        local vehicle = GetVehiclePedIsIn(player, false)
+        if vehicle ~= 0 then
+            SetEntityAsMissionEntity(vehicle, true, true)
+            DeleteEntity(vehicle)
+            TriggerServerEvent('qb-vehiclekeys:server:RemoveKey', plate)
+        end
+
+        -- Reset currentCarCategory and lastChangeTime
+        currentCarCategory = nil
+        lastChangeTime = nil
 
         -- Set cooldown
-        cooldownEnd = GetGameTimer() / 1000 + 3*60
+        cooldownEnd = GetGameTimer() / 1000 + 3 * 60
+
+        if cooldownActive then
+            -- Notify player of successful delivery
+            exports['okokNotify']:Alert("Du skrapa bilen! Du kan hente ny om 3 minutter", "Cooldown", 10000, 'blue')
+        else
+            -- Notify player of successful delivery and cooldown
+            exports['okokNotify']:Alert("Du skrapa bilen! Du kan hente ny om 3 minutter", "Cooldown", 10000, 'blue')
+        end
     else
         -- Notify player about wrong category when 'E' key is pressed
         if IsControlJustReleased(0, 38) then
+            local vehicle = GetVehiclePedIsIn(player, false)
+            if vehicle ~= 0 then
+                local modelHash = GetEntityModel(vehicle)
+                local modelName = GetDisplayNameFromVehicleModel(modelHash)
+                local vehicleCategory = GetVehicleCategory(vehicle)
+                if vehicleCategory == currentCarCategory then
+                    -- Deliver the vehicle and reward the player
+                    deliverCar(player, {category = vehicleCategory})
+                    return
+                end
+            end
             QBCore.Functions.Notify("This is not the correct type of vehicle.", "error")
         end
     end
 end
+
 
 
 -- Create a thread to handle vehicle delivery
@@ -162,7 +198,7 @@ Citizen.CreateThread(function()
     local cooldownActive = false
 
     while true do
-        Citizen.Wait(0)  -- We run this loop every frame
+        Citizen.Wait(0) -- We run this loop every frame
 
         -- Get the player's vehicle
         local ped = PlayerPedId()
@@ -170,7 +206,7 @@ Citizen.CreateThread(function()
         local coords = GetEntityCoords(ped)
 
         -- Draw a marker at the delivery point, but only if the player is in a vehicle
-        if vehicle ~= 0 then  
+        if vehicle ~= 0 then
             DrawMarker(1, deliveryPoint.x, deliveryPoint.y, deliveryPoint.z - 1.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 15.0, 15.0, 1.0, 0, 255, 0, 100, false, true, 2, false, false, false, false)
         end
 
@@ -186,9 +222,7 @@ Citizen.CreateThread(function()
 
             -- If the player is in a vehicle and the correct category
             if vehicle ~= 0 and not cooldownActive then
-                local model = GetEntityModel(vehicle)
-                local category = GetVehicleClassFromModel(model)  -- Update to use GetVehicleClassFromModel
-
+                local category = GetVehicleCategory(vehicle)
                 if category == currentCarCategory then
                     -- If 'E' key is pressed
                     if IsControlJustReleased(0, 38) then

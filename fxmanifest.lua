@@ -13,4 +13,5 @@ dependencies {
 
 -- Specify the main script file
 client_script 'client.lua'
+server_script 'server.lua'
 
