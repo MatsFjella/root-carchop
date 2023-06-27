@@ -89,7 +89,7 @@ local function spawnPed()
             {
                 event = 'myResource:interactWithPed',
                 icon = 'fas fa-car',
-                label = 'Retrieve Car',
+                label = 'Start oppdrag',
             },
         },
         distance = 2.5
@@ -101,7 +101,8 @@ local function interactWithPed()
     updateCarCategory()
     if cooldownEnd ~= nil and GetGameTimer() / 1000 <= cooldownEnd then
         -- Notify player of cooldown
-        QBCore.Functions.Notify("Du må vente på å hente ny bil!", "error")
+        local remainingTime = math.ceil((cooldownEnd - (GetGameTimer() / 1000)) / 60) -- Remaining time in minutes, rounded up
+        QBCore.Functions.Notify("Du må vente på å hente ny bil! ".. remainingTime .." minutt(er)", "error")
     else
         -- Notify player of job assignment
         exports['okokNotify']:Alert("Hent "..currentCarCategory.."", "Biltype du skal stjele", 10000, 'blue')
@@ -163,12 +164,13 @@ local function deliverCar(player, car)
         cooldownEnd = GetGameTimer() / 1000 + 3 * 60
 
         if cooldownActive then
-            -- Notifikasjon for suksessfull levranse
-            exports['okokNotify']:Alert("Du skrapa bilen! Du kan hente ny om 3 minutter", "Cooldown", 10000, 'blue')
+            local remainingTime = math.ceil((cooldownEnd - (GetGameTimer() / 1000)) / 60) -- Remaining time in minutes, rounded up
+            exports['okokNotify']:Alert("Du skrapa bilen! Du kan hente ny om " .. remainingTime .. " minutter", "Cooldown", 10000, 'blue')
         else
             -- Notifikasjon om leveranse og cooldown
             exports['okokNotify']:Alert("Du skrapa bilen! Du kan hente ny om 3 minutter", "Cooldown", 10000, 'blue')
         end
+        
     else
         -- Feil kategori beskjed om du trykker E
         if IsControlJustReleased(0, 38) then
@@ -197,7 +199,7 @@ Citizen.CreateThread(function()
     local vehicleCategory = nil
 
     while true do
-        Citizen.Wait(3000) -- Kjøres vært 3 sekund
+        Citizen.Wait(0) -- Kjøres vært 3 sekund
 
         -- Hent spillerens kjøretøy
         local ped = PlayerPedId()
