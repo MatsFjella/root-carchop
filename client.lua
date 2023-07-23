@@ -128,26 +128,21 @@ local deliveryPoint = vector4(-463.9, -1715.03, 18.67, 301.91)
 local function deliverCar(player, car)
     if car.category == currentCarCategory then
         -- Gevinst
-        local cash = math.random(1000, 4500)
         local rewardItems = {}
 
         -- Velg mellom 3 og 6 items fra items tabellen
-        local numItems = math.random(3, 6)
+        local numItems = math.random(5, 8)
         for i = 1, numItems do
             local item = chooseRandomItem(items)
             table.insert(rewardItems, item)
         end
 
         for _, item in ipairs(rewardItems) do
-            local quantity = math.random(6, 16)
-            TriggerServerEvent('giveItem', item, quantity)
-            TriggerServerEvent('giveMoney', 'cash', cash) 
+            local quantity = math.random(10, 20)
+            TriggerServerEvent('root_bilchop:server:giveItem', item, quantity)
+            TriggerServerEvent('root_bilchop:server:giveMoney') 
 
         end
-
-
-
-
 
         -- Slett kjøretøy
         local vehicle = GetVehiclePedIsIn(player, false)
